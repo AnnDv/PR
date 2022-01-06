@@ -1,24 +1,32 @@
-from email import message
 import threading
 import socket
 import tkinter 
 from tkinter import Entry, Label, StringVar, Toplevel, simpledialog, scrolledtext
 import email
 import smtplib
-from email.message import EmailMessage
-from tkinter.constants import LEFT, WORD
+# import imaplib
+import ftplib
 
 HOST = '127.0.0.1'
 PORT = 9090
+SMTP_URL = 'smtp.gmail.com'
+# IMAP_URL = 'imap.gmail.com'
 
-
+HOSTNAME = "ftp.dlptest.com"
+USERNAME = "dlpuser"
+PASSWORD  = "rNrKYTX9g7z3RgJRmxWuGHbeu"
 
 class Client:
 
-    def __init__(self, host, port):
+    def __init__(self, host, port, hostname, username, password):
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
+
+        # connect ftp server
+        self.ftp_server = ftplib.FTP(hostname, username, password)
+        #  force utf-8 encoding
+        self.ftp_server.encoding = 'utf-8'
 
         self.msg = tkinter.Tk()
         self.msg.withdraw()
@@ -35,6 +43,7 @@ class Client:
 
     def gui_loop(self):
         self.win = tkinter.Tk()
+        self.win.title('chat box')
         self.win.configure(bg="lightgray")
 
         self.chat_label = Label(self.win, text="Chat:", bg="lightgray")
@@ -44,7 +53,7 @@ class Client:
         self.text_area = tkinter.scrolledtext.ScrolledText(self.win)
         self.text_area.pack(padx=20, pady=5)
 
-        self.msg_label = Label(self.win, text="Message:", bg="lightgray")
+        self.msg_label = Label(self.win, text="Write your message below:", bg="lightgray")
         self.msg_label.config(font=('Arial', 12))
         self.msg_label.pack(padx=20, pady=5)
 
@@ -59,6 +68,14 @@ class Client:
         self.send_mail_button.config(font=('Arial', 12))
         self.send_mail_button.pack(padx=20, pady=5)
 
+        self.file_button = tkinter.Button(self.win, text="Send File", command=self.upload_file)
+        self.file_button.config(font=('Arial', 12))
+        self.file_button.pack(padx=20, pady=5)
+
+        # self.view_mail_button = tkinter.Button(self.win, text="View Mail", command=self.imap_email)
+        # self.view_mail_button.config(font=('Arial', 12))
+        # self.view_mail_button.pack(padx=20, pady=5)
+
         self.gui_done = True
 
         self.win.protocol("WM_DELETE_WINDOW", self.stop)
@@ -70,17 +87,16 @@ class Client:
         self.sock.send(message.encode('utf-8'))
         self.input_area.delete('1.0', 'end')
 
-
+    # SMTP protocol
     def send_mail(self):
-
+        
         mail = simpledialog.askstring("Mail", "Enter your mail", parent=self.msg)
         mail_password = simpledialog.askstring("Password", "Enter password", show='*', parent=self.msg)
-
         receiver = simpledialog.askstring("Mail", "Enter receiver mail", parent=self.msg)
         message = simpledialog.askstring("Message", "Write your message", parent=self.msg)
 
         # connect with port 587
-        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server = smtplib.SMTP(SMTP_URL, 587)
         # start the connection
         server.starttls()
         # login into the server
@@ -92,6 +108,33 @@ class Client:
         server.send_message(message2)
         server.quit()
 
+    # # IMAP protocol
+    # def imap_email(self):
+    #     mail = imaplib.IMAP4_SSL(IMAP_URL)
+    #     username = simpledialog.askstring("Mail", "Enter your mail", parent=self.msg)
+    #     mail_password = simpledialog.askstring("Password", "Enter password", show='*', parent=self.msg)
+    #     # initialize conection
+    #     mail.login(username, mail_password)
+
+    #     mail.select('INBOX')
+
+    #     result, data = mail.fetch('search', all, '(RFC822)')
+
+    def upload_file(self):
+        filename = 'new_file.txt'
+        with open(filename, "rb") as file:
+            self.ftp_server.storbinary(f"STOR {filename}", file)
+
+        with open(filename,'wb') as file:
+            self.ftp_server.retrbinary(f"RETR {filename}", file.write)
+
+        # Display the content of downloaded file
+        file= open(filename, "r")
+        print('File Content:', file.read())
+  
+        # Close the Connection
+        self.ftp_server.quit()
+        
     def stop(self):
         self.running = False
         self.win.destroy()
@@ -118,4 +161,4 @@ class Client:
                 self.sock.close()
                 break
 
-client = Client(HOST, PORT)
+client = Client(HOST, PORT, HOSTNAME, USERNAME, PASSWORD)
